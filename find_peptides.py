@@ -8,9 +8,6 @@ from Bio.SeqRecord import SeqRecord
 import re
 import csv
 
-isFasta = False
-isCsv = False
-
 
 def get_arguments():
     desc = "Finds all possible peptides given a range of amino acids."
@@ -68,20 +65,22 @@ def write_to_file(output_filename, output_as_fasta, all_peptide_information):
 
 
 def extract_data(args):
+    start_codons = args.start
+    output_as_fasta = args.fasta
     minimum_peptide_length = args.minlen
     maximum_peptide_length = args.maxlen
     all_peptide_information = []
     try:
         with open(args.file, "r") as handle:
             # Reads in the sequence
-            record_temp = SeqIO.read(handle, "fasta").seq
+            genome_sequence = SeqIO.read(handle, "fasta").seq
             # Sets the alphabet to DNA
-            record = Seq(str(record_temp), IUPAC.unambiguous_dna)
+            forward_sequence = Seq(str(genome_sequence), IUPAC.unambiguous_dna)
 
             # Gets reverse complement
-            record_rc = record.reverse_complement()
-            all_peptide_information.extend(find(record, "+", minimum_peptide_length, maximum_peptide_length, args.start, args.fasta))
-            all_peptide_information.extend(find(record_rc, '-', minimum_peptide_length, maximum_peptide_length, args.start, args.fasta))
+            reverse_compliment_sequence = forward_sequence.reverse_complement()
+            all_peptide_information.extend(find(forward_sequence, "+", minimum_peptide_length, maximum_peptide_length, start_codons, output_as_fasta))
+            all_peptide_information.extend(find(reverse_compliment_sequence, '-', minimum_peptide_length, maximum_peptide_length, start_codons, output_as_fasta))
     except FileNotFoundError as fnf_error:
         print(fnf_error)
     return all_peptide_information
@@ -116,51 +115,58 @@ def fastaSequence(DNA) :
 
 
 # Finds and prints all of the proteins given a sequence and a forward/reverse complement tag
-def find(sequence, toMark, min, max, start, isFasta):
+def find(sequence, toMark, minimum_peptide_length, maximum_peptide_length, start_codons_as_string, output_as_fasta):
 
     # splits the start argument
-    starters = start.split(",")
-    for i in range(len(starters)):
-        starters[i] = starters[i].strip()
+    start_codons = extract_start_codons(start_codons_as_string)
 
-    count = 0
     # Finds the indices of all start codons- regardless of reading frame
-    locations = [m.start() for m in re.finditer(starters[0], str(sequence))]
-    for i in range(1, len(starters)):
-        locations.extend([m.start() for m in re.finditer(starters[i], str(sequence))])
+    start_codon_locations = get_all_start_codon_locations(sequence, start_codons)
 
-    toRet = []
-    for index in locations:
+    all_peptide_information = []
+    for index in start_codon_locations:
         # Tests end case to avoid array out of bounds exception
-        if (len(sequence) - index < (3*(max + 1))):
+        if len(sequence) - index < (3*(maximum_peptide_length + 1)):
             toTest = sequence[index:]
             toTest_tr = toTest.translate(to_stop=True)
-            if (min <= len(toTest_tr) and len(toTest_tr) <= max):
+            if minimum_peptide_length <= len(toTest_tr) <= maximum_peptide_length:
                 toTest_dna = toTest[0:len(toTest_tr)*3 + 3]
                 # print("index %i, %s, Length: %i, DNA: %s, Protein: %s"
                 # (index, toMark, len(toTest_tr), str(toTest_dna), str(toTest_tr)))
-                count += 1
-                if (isFasta):
-                    toRet.append(fastaSequence(toTest_dna))
+                if (output_as_fasta):
+                    all_peptide_information.append(fastaSequence(toTest_dna))
                 else:
-                    toRet.append(csvSequence(index, toMark, len(toTest_tr), str(toTest_dna), str(toTest_tr)))
+                    all_peptide_information.append(csvSequence(index, toMark, len(toTest_tr), str(toTest_dna), str(toTest_tr)))
 
         else:
             # Creates a subsequence of max length max+1
-            toTest = sequence[index:(index + 3*(max + 1))]
+            toTest = sequence[index:(index + 3 * (maximum_peptide_length + 1))]
             # Translates the subsequence and cuts off just before a stop codon
             toTest_tr = toTest.translate(to_stop=True)
             # Checks to see if the translated sequence is inbetween the inputted max and min and prints if true
-            if (min <= len(toTest_tr) and len(toTest_tr) <= max):
+            if (minimum_peptide_length <= len(toTest_tr) and len(toTest_tr) <= maximum_peptide_length):
                 toTest_dna = toTest[0:len(toTest_tr)*3 + 3]
                 # print("index %i, %s, Length: %i, DNA: %s, Protein: %s"
                 # (index, toMark, len(toTest_tr), str(toTest_dna), str(toTest_tr)))
-                count += 1
-                if (isFasta):
-                    toRet.append(fastaSequence(toTest_dna))
+                if (output_as_fasta):
+                    all_peptide_information.append(fastaSequence(toTest_dna))
                 else:
-                    toRet.append(csvSequence(index, toMark, len(toTest_tr), str(toTest_dna), str(toTest_tr)))
-    return toRet
+                    all_peptide_information.append(csvSequence(index, toMark, len(toTest_tr), str(toTest_dna), str(toTest_tr)))
+    return all_peptide_information
+
+
+def get_all_start_codon_locations(sequence, start_codons):
+    locations = [m.start() for m in re.finditer(start_codons[0], str(sequence))]
+    for i in range(1, len(start_codons)):
+        locations.extend([m.start() for m in re.finditer(start_codons[i], str(sequence))])
+    return locations
+
+
+def extract_start_codons(start_codons_as_string):
+    starters = start_codons_as_string.split(",")
+    for i in range(len(starters)):
+        starters[i] = starters[i].strip()
+    return starters
 
 
 if __name__ == '__main__':
