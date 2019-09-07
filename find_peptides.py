@@ -11,8 +11,8 @@ import csv
 isFasta = False
 isCsv = False
 
-#"Main" of the program, checks to see if the file exists and if it does, parses the forward and reverse complement
-def Main():
+
+def get_arguments():
     desc = "Finds all possible peptides given a range of amino acids."
 
     parser = argparse.ArgumentParser(description=desc)
@@ -42,9 +42,12 @@ def Main():
     typ.add_argument('-f', '--fasta',
                      help="Export file as fasta", action="store_true")
 
+    return parser.parse_args()
 
+#"Main" of the program, checks to see if the file exists and if it does, parses the forward and reverse complement
+def Main():
 
-    args = parser.parse_args()
+    args = get_arguments()
 
     '''
     min = int(input("Enter the minimum amount of amino acids: "))
