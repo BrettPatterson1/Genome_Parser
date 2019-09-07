@@ -46,33 +46,31 @@ def get_arguments():
 
 #"Main" of the program, checks to see if the file exists and if it does, parses the forward and reverse complement
 def Main():
-
     args = get_arguments()
-
-    fileDir_w = create_output_filename(args)
+    output_filename = create_output_filename(args)
     output_as_fasta = args.fasta
-    toWrite = extract_data(args)
-    write_to_file(fileDir_w, output_as_fasta, toWrite)
+    all_peptide_information = extract_data(args)
+    write_to_file(output_filename, output_as_fasta, all_peptide_information)
 
 
-def write_to_file(fileDir_w, output_as_fasta, toWrite):
+def write_to_file(output_filename, output_as_fasta, all_peptide_information):
     try:
-        with open(fileDir_w, "w") as fileMake:
+        with open(output_filename, "w") as fileMake:
             if output_as_fasta:
-                SeqIO.write(toWrite, fileMake, "fasta")
+                SeqIO.write(all_peptide_information, fileMake, "fasta")
             else:
                 w = csv.writer(fileMake)
                 w.writerow(['Index', 'Direction', 'Protein Length', 'DNA Sequence', 'Protein Sequence'])
-                w.writerows(toWrite)
+                w.writerows(all_peptide_information)
             fileMake.close()
     except FileNotFoundError as fnf_error:
         print(fnf_error)
 
 
 def extract_data(args):
-    min = args.minlen
-    max = args.maxlen
-    toWrite = []
+    minimum_peptide_length = args.minlen
+    maximum_peptide_length = args.maxlen
+    all_peptide_information = []
     try:
         with open(args.file, "r") as handle:
             # Reads in the sequence
@@ -82,11 +80,11 @@ def extract_data(args):
 
             # Gets reverse complement
             record_rc = record.reverse_complement()
-            toWrite.extend(find(record, "+", min, max, args.start, args.fasta))
-            toWrite.extend(find(record_rc, '-', min, max, args.start, args.fasta))
+            all_peptide_information.extend(find(record, "+", minimum_peptide_length, maximum_peptide_length, args.start, args.fasta))
+            all_peptide_information.extend(find(record_rc, '-', minimum_peptide_length, maximum_peptide_length, args.start, args.fasta))
     except FileNotFoundError as fnf_error:
         print(fnf_error)
-    return toWrite
+    return all_peptide_information
 
 
 def create_output_filename(args):
