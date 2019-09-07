@@ -49,47 +49,16 @@ def Main():
 
     args = get_arguments()
 
-    '''
-    min = int(input("Enter the minimum amount of amino acids: "))
-    max = int(input("Enter the maximum amount of amino acids: "))
-    fileDir_r = input("Enter the fasta file name to parse: ")
-    fileType = input("Enter the type of file to create (type 'csv' or 'fasta') ")
-    '''
-    min = args.minlen
-    max = args.maxlen
+    fileDir_w = create_output_filename(args)
+    output_as_fasta = args.fasta
+    toWrite = extract_data(args)
+    write_to_file(fileDir_w, output_as_fasta, toWrite)
 
 
-    # This just returns the file directory to read - the extension so we can make a new file based on it
-    # If this causes errors in the future, take a look at os.splitext
-    # https://docs.python.org/2/library/os.path.html
-    # fileDir_w = ((fileDir_r[::-1]).split(".", 1)[1][::-1] + "_parsed")
-    if args.export:
-        fileDir_w = args.export
-    else:
-        fileDir_w = (os.path.splitext(args.file)[0] + "_parsed")
-
-    if args.fasta:
-        fileDir_w = fileDir_w + ".fasta"
-    else:
-        fileDir_w = fileDir_w + ".csv"
-
-    numOfPeptides = 0
-    toWrite = []
-
+def write_to_file(fileDir_w, output_as_fasta, toWrite):
     try:
-        with open(args.file, "r") as handle, open(fileDir_w, "w") as fileMake:
-            #Reads in the sequence
-            record_temp = SeqIO.read(handle, "fasta").seq
-            #Sets the alphabet to DNA
-            record = Seq(str(record_temp), IUPAC.unambiguous_dna)
-
-            # Gets reverse complement
-            record_rc = record.reverse_complement()
-            toWrite.extend(find(record, "+", min, max, args.start, args.fasta))
-            toWrite.extend(find(record_rc, '-', min, max, args.start, args.fasta))
-
-            # Problem is I'm appending a list to a list
-            if args.fasta:
+        with open(fileDir_w, "w") as fileMake:
+            if output_as_fasta:
                 SeqIO.write(toWrite, fileMake, "fasta")
             else:
                 w = csv.writer(fileMake)
@@ -98,6 +67,42 @@ def Main():
             fileMake.close()
     except FileNotFoundError as fnf_error:
         print(fnf_error)
+
+
+def extract_data(args):
+    min = args.minlen
+    max = args.maxlen
+    toWrite = []
+    try:
+        with open(args.file, "r") as handle:
+            # Reads in the sequence
+            record_temp = SeqIO.read(handle, "fasta").seq
+            # Sets the alphabet to DNA
+            record = Seq(str(record_temp), IUPAC.unambiguous_dna)
+
+            # Gets reverse complement
+            record_rc = record.reverse_complement()
+            toWrite.extend(find(record, "+", min, max, args.start, args.fasta))
+            toWrite.extend(find(record_rc, '-', min, max, args.start, args.fasta))
+    except FileNotFoundError as fnf_error:
+        print(fnf_error)
+    return toWrite
+
+
+def create_output_filename(args):
+    # This just returns the file directory to read - the extension so we can make a new file based on it
+    # If this causes errors in the future, take a look at os.splitext
+    # https://docs.python.org/2/library/os.path.html
+    # fileDir_w = ((fileDir_r[::-1]).split(".", 1)[1][::-1] + "_parsed")
+    if args.export:
+        fileDir_w = args.export
+    else:
+        fileDir_w = (os.path.splitext(args.file)[0] + "_parsed")
+    if args.fasta:
+        fileDir_w = fileDir_w + ".fasta"
+    else:
+        fileDir_w = fileDir_w + ".csv"
+    return fileDir_w
 
 
 # Organizes given data into a csv-format
