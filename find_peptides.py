@@ -14,9 +14,25 @@ def main():
     args = get_arguments()
     output_filename = create_output_filename(args)
     output_as_fasta = args.fasta
-    all_peptide_information = extract_data(args)
+    anchor_locations = get_anchor_locations(args.anchor_location_file)
+    all_peptide_information = extract_data(args, anchor_locations)
     write_to_file(output_filename, output_as_fasta, all_peptide_information)
 
+
+def get_anchor_locations(filename):
+    f = open(filename, "r")
+    if f.mode == 'r':
+        locations_as_string = f.read()
+    locations = []
+    separate_locations = locations_as_string.split(" ")
+    for location in separate_locations:
+        if location == "":
+            continue
+        else:
+            no_space_location = location.strip()
+            if no_space_location != "":
+                locations.append(int(no_space_location))
+    return locations
 
 def get_arguments():
     desc = "Finds all possible peptides given a range of amino acids."
@@ -37,8 +53,14 @@ def get_arguments():
     parser.add_argument('-s', '--start', default="ATG",
                         help='start codons to user (separated by commas)- ATG default', type=str)
 
-    parser.add_argument('file',
-                        help='input file to parse', type=str)
+    parser.add_argument('fasta_file',
+                        help='input fasta file to parse', type=str)
+
+    parser.add_argument('anchor_location_file',
+                        help='text file with anchor indices based on nucleotide location', type=str)
+
+    parser.add_argument('-r', '--radius', default=50,
+                        help='Maximum radius tolerance from anchor locations', type=int)
 
     typ = parser.add_mutually_exclusive_group()
 
@@ -65,14 +87,16 @@ def write_to_file(output_filename, output_as_fasta, all_peptide_information):
         print(fnf_error)
 
 
-def extract_data(args):
+def extract_data(args, anchor_locations):
+    radius = args.radius
     start_codons = args.start
     output_as_fasta = args.fasta
     minimum_peptide_length = args.minlen
     maximum_peptide_length = args.maxlen
     all_peptide_information = []
+    fasta_file = args.fasta_file
     try:
-        with open(args.file, "r") as handle:
+        with open(fasta_file, "r") as handle:
             # Reads in the sequence
             genome_sequence = SeqIO.read(handle, "fasta").seq
             # Sets the alphabet to DNA
@@ -82,12 +106,11 @@ def extract_data(args):
             reverse_compliment_sequence = forward_sequence.reverse_complement()
             all_peptide_information.extend(
                 find_all_possible_proteins(forward_sequence, "+", minimum_peptide_length, maximum_peptide_length,
-                                           start_codons,
-                                           output_as_fasta))
+                                           start_codons, output_as_fasta, radius, anchor_locations))
             all_peptide_information.extend(
                 find_all_possible_proteins(reverse_compliment_sequence, '-', minimum_peptide_length,
                                            maximum_peptide_length, start_codons,
-                                           output_as_fasta))
+                                           output_as_fasta, radius, anchor_locations))
     except FileNotFoundError as fnf_error:
         print(fnf_error)
     return all_peptide_information
@@ -124,13 +147,12 @@ def create_fasta_sequence(dna):
 
 # Finds and prints all of the proteins given a sequence and a forward/reverse complement tag
 def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_peptide_length, maximum_peptide_length,
-                               start_codons_as_string,
-                               output_as_fasta):
+                               start_codons_as_string, output_as_fasta, radius, anchor_locations):
     # splits the start argument
     start_codons = extract_start_codons(start_codons_as_string)
 
     # Finds the indices of all start codons- regardless of reading frame
-    start_codon_locations = get_all_start_codon_locations(genome_sequence, start_codons)
+    start_codon_locations = get_all_start_codon_locations(genome_sequence, start_codons, anchor_locations, radius)
 
     all_peptide_information = []
     for index in start_codon_locations:
@@ -178,11 +200,17 @@ def window_exceeds_genome_array_bounds(genome_sequence, index, maximum_peptide_l
     return (3 * (maximum_peptide_length + 1)) + index > len(genome_sequence)
 
 
-def get_all_start_codon_locations(sequence, start_codons):
-    locations = []
+def get_all_start_codon_locations(sequence, start_codons, anchor_locations, radius):
+    all_locations = []
     for i in range(len(start_codons)):
-        locations.extend([m.start() for m in re.finditer(start_codons[i], str(sequence))])
-    return locations
+        all_locations.extend([m.start() for m in re.finditer(start_codons[i], str(sequence))])
+    filtered_locations = []
+    for location in all_locations:
+        for anchor in anchor_locations:
+            if anchor - radius <= location <= anchor + radius:
+                filtered_locations.append(location)
+                break
+    return filtered_locations
 
 
 def extract_start_codons(start_codons_as_string):
