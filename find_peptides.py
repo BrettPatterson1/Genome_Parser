@@ -168,7 +168,7 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
             dna_window = dna_window[:(len_window // 3) * 3]
             translated_window = dna_window.translate(to_stop=True)
             # Means never reached stop codon
-            if len(translated_window) == len(dna_window) * 3:
+            if len(translated_window) * 3 == len(dna_window):
                 continue
             if protein_meets_length_specifications(minimum_peptide_length, maximum_peptide_length, translated_window):
                 dna_up_to_stop_codon = dna_window[:(len(translated_window) + 1) * 3]
