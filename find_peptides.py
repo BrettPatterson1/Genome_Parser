@@ -14,7 +14,10 @@ def main():
     args = get_arguments()
     output_filename = create_output_filename(args)
     output_as_fasta = args.fasta
-    anchor_locations = get_anchor_locations(args.anchor_location_file)
+    if args.anchor_location_file is not None:
+        anchor_locations = get_anchor_locations(args.anchor_location_file)
+    else:
+        anchor_locations = []
     all_peptide_information = extract_data(args, anchor_locations)
     write_to_file(output_filename, output_as_fasta, all_peptide_information)
 
@@ -57,7 +60,7 @@ def get_arguments():
     parser.add_argument('fasta_file',
                         help='input fasta file to parse', type=str)
 
-    parser.add_argument('anchor_location_file',
+    parser.add_argument('-a', '--anchor_location_file', default=None,
                         help='text file with anchor indices based on nucleotide location', type=str)
 
     parser.add_argument('-r', '--radius', default=50,
@@ -160,9 +163,15 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
         # Tests end case to avoid array out of bounds exception
         if window_exceeds_genome_array_bounds(length_of_sequence, index, maximum_peptide_length):
             dna_window = genome_sequence[index:]
+            len_window = len(dna_window)
+            # Use this to make multiple of three
+            dna_window = dna_window[:(len_window // 3) * 3]
             translated_window = dna_window.translate(to_stop=True)
+            # Means never reached stop codon
+            if len(translated_window) == len(dna_window) * 3:
+                continue
             if protein_meets_length_specifications(minimum_peptide_length, maximum_peptide_length, translated_window):
-                dna_up_to_stop_codon = dna_window[0:(len(translated_window) + 1) * 3]
+                dna_up_to_stop_codon = dna_window[:(len(translated_window) + 1) * 3]
                 # print("index %i, %s, Length: %i, DNA: %s, Protein: %s"
                 # (index, direction indicator, len(translated_window), str(dna_up_to_stop_codon), str(translated_window)))
                 if output_as_fasta:
@@ -209,12 +218,15 @@ def window_exceeds_genome_array_bounds(len_genome_sequence, index, maximum_pepti
 
 def get_all_start_codon_locations(sequence, start_codons, anchor_locations, radius, direction_indicator):
     all_locations = []
+    for i in range(len(start_codons)):
+        all_locations.extend([m.start() for m in re.finditer(start_codons[i], str(sequence))])
+    if len(anchor_locations) == 0:
+        return all_locations
+
     if direction_indicator == "-":
         length_of_sequence = len(sequence)
         for i in range(len(anchor_locations)):
             anchor_locations[i] = length_of_sequence - anchor_locations[i]
-    for i in range(len(start_codons)):
-        all_locations.extend([m.start() for m in re.finditer(start_codons[i], str(sequence))])
     filtered_locations = []
     for location in all_locations:
         for anchor in anchor_locations:
