@@ -21,6 +21,7 @@ def main():
 
 def get_anchor_locations(filename):
     f = open(filename, "r")
+    locations_as_string = ""
     if f.mode == 'r':
         locations_as_string = f.read()
     locations = []
@@ -152,12 +153,12 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
     start_codons = extract_start_codons(start_codons_as_string)
 
     # Finds the indices of all start codons- regardless of reading frame
-    start_codon_locations = get_all_start_codon_locations(genome_sequence, start_codons, anchor_locations, radius)
-
+    start_codon_locations = get_all_start_codon_locations(genome_sequence, start_codons, anchor_locations, radius, direction_indicator)
+    length_of_sequence = len(genome_sequence)
     all_peptide_information = []
     for index in start_codon_locations:
         # Tests end case to avoid array out of bounds exception
-        if window_exceeds_genome_array_bounds(genome_sequence, index, maximum_peptide_length):
+        if window_exceeds_genome_array_bounds(length_of_sequence, index, maximum_peptide_length):
             dna_window = genome_sequence[index:]
             translated_window = dna_window.translate(to_stop=True)
             if protein_meets_length_specifications(minimum_peptide_length, maximum_peptide_length, translated_window):
@@ -167,8 +168,11 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
                 if output_as_fasta:
                     all_peptide_information.append(create_fasta_sequence(dna_up_to_stop_codon))
                 else:
+                    corrected_index = index
+                    if direction_indicator == "-":
+                        corrected_index = length_of_sequence - index
                     all_peptide_information.append(
-                        create_csv_sequence(index, direction_indicator, len(translated_window),
+                        create_csv_sequence(corrected_index, direction_indicator, len(translated_window),
                                             str(dna_up_to_stop_codon),
                                             str(translated_window)))
 
@@ -185,8 +189,11 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
                 if output_as_fasta:
                     all_peptide_information.append(create_fasta_sequence(dna_up_to_stop_codon))
                 else:
+                    corrected_index = index
+                    if direction_indicator == "-":
+                        corrected_index = length_of_sequence - index
                     all_peptide_information.append(
-                        create_csv_sequence(index, direction_indicator, len(translated_window),
+                        create_csv_sequence(corrected_index, direction_indicator, len(translated_window),
                                             str(dna_up_to_stop_codon),
                                             str(translated_window)))
     return all_peptide_information
@@ -196,12 +203,16 @@ def protein_meets_length_specifications(minimum_peptide_length, maximum_peptide_
     return minimum_peptide_length <= len(translated_window) <= maximum_peptide_length
 
 
-def window_exceeds_genome_array_bounds(genome_sequence, index, maximum_peptide_length):
-    return (3 * (maximum_peptide_length + 1)) + index > len(genome_sequence)
+def window_exceeds_genome_array_bounds(len_genome_sequence, index, maximum_peptide_length):
+    return (3 * (maximum_peptide_length + 1)) + index > len_genome_sequence
 
 
-def get_all_start_codon_locations(sequence, start_codons, anchor_locations, radius):
+def get_all_start_codon_locations(sequence, start_codons, anchor_locations, radius, direction_indicator):
     all_locations = []
+    if direction_indicator == "-":
+        length_of_sequence = len(sequence)
+        for i in range(len(anchor_locations)):
+            anchor_locations[i] = length_of_sequence - anchor_locations[i]
     for i in range(len(start_codons)):
         all_locations.extend([m.start() for m in re.finditer(start_codons[i], str(sequence))])
     filtered_locations = []
