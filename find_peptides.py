@@ -179,7 +179,7 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
                 else:
                     corrected_index = index
                     if direction_indicator == "-":
-                        corrected_index = length_of_sequence - index
+                        corrected_index = length_of_sequence - index - 1
                     all_peptide_information.append(
                         create_csv_sequence(corrected_index, direction_indicator, len(translated_window),
                                             str(dna_up_to_stop_codon),
@@ -200,7 +200,7 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
                 else:
                     corrected_index = index
                     if direction_indicator == "-":
-                        corrected_index = length_of_sequence - index
+                        corrected_index = length_of_sequence - index - 1
                     all_peptide_information.append(
                         create_csv_sequence(corrected_index, direction_indicator, len(translated_window),
                                             str(dna_up_to_stop_codon),
@@ -226,7 +226,7 @@ def get_all_start_codon_locations(sequence, start_codons, anchor_locations, radi
     if direction_indicator == "-":
         length_of_sequence = len(sequence)
         for i in range(len(anchor_locations)):
-            anchor_locations[i] = length_of_sequence - anchor_locations[i]
+            anchor_locations[i] = length_of_sequence - 1 - anchor_locations[i]
     filtered_locations = []
     for location in all_locations:
         for anchor in anchor_locations:
