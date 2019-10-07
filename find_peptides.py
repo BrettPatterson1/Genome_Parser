@@ -19,7 +19,8 @@ def main():
     else:
         anchor_locations = []
     all_peptide_information = extract_data(args, anchor_locations)
-    write_to_file(output_filename, output_as_fasta, all_peptide_information)
+    upstream_bases = args.upstream
+    write_to_file(output_filename, output_as_fasta, all_peptide_information, upstream_bases)
 
 
 def get_anchor_locations(filename):
@@ -51,6 +52,9 @@ def get_arguments():
     parser.add_argument('-max', '--maxlen', default=45,
                         help='Maximum length of amino acids (45 default)', type=int)
 
+    parser.add_argument('-u', "--upstream", default=120,
+                        help="Number of nucleotide bases to record upstream", type=int)
+
     parser.add_argument('-min', '--minlen', default=15,
                         help='Minimum length of amino acids (15 default)', type=int)
 
@@ -77,14 +81,14 @@ def get_arguments():
     return parser.parse_args()
 
 
-def write_to_file(output_filename, output_as_fasta, all_peptide_information):
+def write_to_file(output_filename, output_as_fasta, all_peptide_information, upstream_bases):
     try:
         with open(output_filename, "w") as fileMake:
             if output_as_fasta:
                 SeqIO.write(all_peptide_information, fileMake, "fasta")
             else:
                 w = csv.writer(fileMake)
-                w.writerow(['Index', 'Direction', 'Protein Length', 'DNA Sequence', 'Protein Sequence'])
+                w.writerow(['Index', 'Direction', 'Protein Length', 'DNA Sequence', 'Protein Sequence', "Upstream {} Bases".format(upstream_bases)])
                 w.writerows(all_peptide_information)
             fileMake.close()
     except FileNotFoundError as fnf_error:
@@ -98,6 +102,7 @@ def extract_data(args, anchor_locations):
     minimum_peptide_length = args.minlen
     maximum_peptide_length = args.maxlen
     all_peptide_information = []
+    upstream_length = args.upstream
     fasta_file = args.fasta_file
     try:
         with open(fasta_file, "r") as handle:
@@ -110,11 +115,11 @@ def extract_data(args, anchor_locations):
             reverse_compliment_sequence = forward_sequence.reverse_complement()
             all_peptide_information.extend(
                 find_all_possible_proteins(forward_sequence, "+", minimum_peptide_length, maximum_peptide_length,
-                                           start_codons, output_as_fasta, radius, anchor_locations))
+                                           start_codons, output_as_fasta, radius, anchor_locations, upstream_length))
             all_peptide_information.extend(
                 find_all_possible_proteins(reverse_compliment_sequence, '-', minimum_peptide_length,
                                            maximum_peptide_length, start_codons,
-                                           output_as_fasta, radius, anchor_locations))
+                                           output_as_fasta, radius, anchor_locations, upstream_length))
     except FileNotFoundError as fnf_error:
         print(fnf_error)
     return all_peptide_information
@@ -137,8 +142,8 @@ def create_output_filename(args):
 
 
 # Organizes given data into a csv-format
-def create_csv_sequence(index, mark, length, dna_as_string, protein_as_string):
-    return [index, mark, length, dna_as_string, protein_as_string]
+def create_csv_sequence(index, mark, length, dna_as_string, protein_as_string, upstream_bases):
+    return [index, mark, length, dna_as_string, protein_as_string, upstream_bases]
 
 
 # Organizes given data into a fasta-format
@@ -151,7 +156,7 @@ def create_fasta_sequence(dna):
 
 # Finds and prints all of the proteins given a sequence and a forward/reverse complement tag
 def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_peptide_length, maximum_peptide_length,
-                               start_codons_as_string, output_as_fasta, radius, anchor_locations):
+                               start_codons_as_string, output_as_fasta, radius, anchor_locations, upstream_length):
     # splits the start argument
     start_codons = extract_start_codons(start_codons_as_string)
 
@@ -160,6 +165,11 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
     length_of_sequence = len(genome_sequence)
     all_peptide_information = []
     for index in start_codon_locations:
+        if index - upstream_length < 0:
+            upstream_bases = str(genome_sequence[:index])
+        else:
+            upstream_bases = str(genome_sequence[index - upstream_length: index])
+
         # Tests end case to avoid array out of bounds exception
         if window_exceeds_genome_array_bounds(length_of_sequence, index, maximum_peptide_length):
             dna_window = genome_sequence[index:]
@@ -183,7 +193,7 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
                     all_peptide_information.append(
                         create_csv_sequence(corrected_index, direction_indicator, len(translated_window),
                                             str(dna_up_to_stop_codon),
-                                            str(translated_window)))
+                                            str(translated_window), upstream_bases))
 
         else:
             # Creates a subsequence of max length + 1
@@ -204,7 +214,7 @@ def find_all_possible_proteins(genome_sequence, direction_indicator, minimum_pep
                     all_peptide_information.append(
                         create_csv_sequence(corrected_index, direction_indicator, len(translated_window),
                                             str(dna_up_to_stop_codon),
-                                            str(translated_window)))
+                                            str(translated_window), upstream_bases))
     return all_peptide_information
 
 
