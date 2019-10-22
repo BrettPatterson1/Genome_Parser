@@ -12,7 +12,6 @@ import csv
 # "Main" of the program, checks to see if the file exists and if it does, parses the forward and reverse complement
 def main():
     args = get_arguments()
-    output_filename = create_output_filename(args)
     output_as_fasta = args.fasta
     if args.anchor_location_file is not None:
         anchor_locations = get_anchor_locations(args.anchor_location_file)
@@ -20,7 +19,16 @@ def main():
         anchor_locations = []
     all_peptide_information = extract_data(args, anchor_locations)
     upstream_bases = args.upstream
-    write_to_file(output_filename, output_as_fasta, all_peptide_information, upstream_bases)
+    if args.export:
+        output_filename = create_output_filename(args)
+        write_to_file(output_filename, output_as_fasta, all_peptide_information, upstream_bases)
+    else:
+        if output_as_fasta:
+            print(all_peptide_information)
+        else:
+            print(['Index', 'Direction', 'Protein Length', 'DNA Sequence', 'Protein Sequence', "Upstream {} Bases".format(upstream_bases)])
+            for row in all_peptide_information:
+                print(row)
 
 
 def get_anchor_locations(filename):
@@ -46,7 +54,7 @@ def get_arguments():
 
     parser.add_argument('-e', '--export',
                         help="file name to export (no extension)." +
-                             "Default is the file name with extension '_parsed'",
+                             "Default prints to stdout",
                         type=str)
 
     parser.add_argument('-max', '--maxlen', default=45,
