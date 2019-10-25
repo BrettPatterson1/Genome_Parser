@@ -1,5 +1,5 @@
 import os
-
+import sys
 import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -13,11 +13,13 @@ import csv
 def main():
     args = get_arguments()
     output_as_fasta = args.fasta
+
     if args.anchor_location_file is not None:
         anchor_locations = get_anchor_locations(args.anchor_location_file)
     else:
         anchor_locations = []
-    all_peptide_information = extract_data(args, anchor_locations)
+    dna_as_strings = get_dna_as_string(args.fasta_file)
+    all_peptide_information = extract_data(args, anchor_locations, dna_as_strings)
     upstream_bases = args.upstream
     if args.export:
         output_filename = create_output_filename(args)
@@ -29,6 +31,29 @@ def main():
             print(['Index', 'Direction', 'Protein Length', 'DNA Sequence', 'Protein Sequence', "Upstream {} Bases".format(upstream_bases)])
             for row in all_peptide_information:
                 print(row)
+
+
+def get_dna_as_string(fasta_file):
+    if fasta_file is None:
+        return read_stdin()
+    try:
+        with open(fasta_file, "rU") as handle:
+            # Reads in the sequence
+            full_sequence = []
+            for record in SeqIO.parse(handle, "fasta"):
+                full_sequence.append(str(record.seq))
+            return "".join(full_sequence)
+    except FileNotFoundError as fnf_error:
+        print(fnf_error)
+
+
+#Assumes Fasta File format
+def read_stdin():
+    handle = sys.stdin
+    full_sequence = []
+    for record in SeqIO.parse(handle, "fasta"):
+        full_sequence.append(str(record.seq))
+    return "".join(full_sequence)
 
 
 def get_anchor_locations(filename):
@@ -69,8 +94,8 @@ def get_arguments():
     parser.add_argument('-s', '--start', default="ATG",
                         help='start codons to user (separated by commas)- ATG default', type=str)
 
-    parser.add_argument('fasta_file',
-                        help='input fasta file to parse', type=str)
+    parser.add_argument('-f', '--fasta_file',
+                        help='input fasta file to parse, else reads from stdin and assumes fasta_file format', type=str)
 
     parser.add_argument('-a', '--anchor_location_file', default=None,
                         help='text file with anchor indices based on nucleotide location', type=str)
@@ -83,10 +108,11 @@ def get_arguments():
     typ.add_argument('-c', '--csv',
                      help="Export file as csv (default)", action="store_true")
 
-    typ.add_argument('-f', '--fasta',
+    typ.add_argument('-fa', '--fasta',
                      help="Export file as fasta", action="store_true")
 
-    return parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    return args
 
 
 def write_to_file(output_filename, output_as_fasta, all_peptide_information, upstream_bases):
@@ -103,7 +129,7 @@ def write_to_file(output_filename, output_as_fasta, all_peptide_information, ups
         print(fnf_error)
 
 
-def extract_data(args, anchor_locations):
+def extract_data(args, anchor_locations, genome_sequence_as_str):
     radius = args.radius
     start_codons = args.start
     output_as_fasta = args.fasta
@@ -111,25 +137,19 @@ def extract_data(args, anchor_locations):
     maximum_peptide_length = args.maxlen
     all_peptide_information = []
     upstream_length = args.upstream
-    fasta_file = args.fasta_file
-    try:
-        with open(fasta_file, "r") as handle:
-            # Reads in the sequence
-            genome_sequence = SeqIO.read(handle, "fasta").seq
-            # Sets the alphabet to DNA
-            forward_sequence = Seq(str(genome_sequence), IUPAC.unambiguous_dna)
+    # Reads in the sequence
+    # Sets the alphabet to DNA
+    forward_sequence = Seq(genome_sequence_as_str, IUPAC.unambiguous_dna)
 
-            # Gets reverse complement
-            reverse_compliment_sequence = forward_sequence.reverse_complement()
-            all_peptide_information.extend(
-                find_all_possible_proteins(forward_sequence, "+", minimum_peptide_length, maximum_peptide_length,
-                                           start_codons, output_as_fasta, radius, anchor_locations, upstream_length))
-            all_peptide_information.extend(
-                find_all_possible_proteins(reverse_compliment_sequence, '-', minimum_peptide_length,
-                                           maximum_peptide_length, start_codons,
-                                           output_as_fasta, radius, anchor_locations, upstream_length))
-    except FileNotFoundError as fnf_error:
-        print(fnf_error)
+    # Gets reverse complement
+    reverse_compliment_sequence = forward_sequence.reverse_complement()
+    all_peptide_information.extend(
+        find_all_possible_proteins(forward_sequence, "+", minimum_peptide_length, maximum_peptide_length,
+                                   start_codons, output_as_fasta, radius, anchor_locations, upstream_length))
+    all_peptide_information.extend(
+        find_all_possible_proteins(reverse_compliment_sequence, '-', minimum_peptide_length,
+                                   maximum_peptide_length, start_codons,
+                                   output_as_fasta, radius, anchor_locations, upstream_length))
     return all_peptide_information
 
 

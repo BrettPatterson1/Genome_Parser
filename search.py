@@ -1,6 +1,7 @@
 import argparse
 import csv
 from Bio import Align
+from Bio import pairwise2
 import sys
 
 
@@ -14,8 +15,23 @@ aligner.target_end_gap_score = 0.0
 aligner.query_end_gap_score = 0.0
 
 
+MATCH_SCORE = 2
+MISMATCH_SCORE = -1
+OPEN_GAP_SCORE = -0.5
+EXTEND_GAP_SCORE = -0.1
+
 def score(seqA, seqB):
     return aligner.score(seqA, seqB)
+
+def get_score_and_sequences(seqA, seqB):
+    alignments = aligner.align(seqA, seqB)
+    maximum = max(alignments)
+    as_string = str(maximum)
+    split = as_string.split("\n")
+    found = split[0]
+    original_with_gaps = split[2]
+    return [maximum.score, found, original_with_gaps]
+    # alignment = pairwise2.align.globalms(seqA, seqB, MATCH_SCORE, MISMATCH_SCORE, OPEN_GAP_SCORE, EXTEND_GAP_SCORE, one_alignment_only = True)
 
 def get_arguments():
     desc = "Sorts a csv by match score for particular arguments"
@@ -43,7 +59,8 @@ def get_arguments():
     typ_seq.add_argument('-nuc', '--nucleotides',
                          help="parse nucleotide sequence", action="store_true")
 
-    return parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    return args
 
 
 def read_csv(filename):
@@ -60,9 +77,11 @@ def read_csv(filename):
 
 
 def match(header_append, num_to_score, sequence, data):
-    data[0].append(header_append)
+    header_extension = [header_append, "Closest Match Found", "Original Sequence With Gaps"]
+    data[0].extend(header_extension)
     for i in range(1, len(data)):
-        data[i].append(score(sequence, data[i][num_to_score]))
+        data[i].extend(get_score_and_sequences(sequence, data[i][num_to_score]))
+        # data[i].append(score(sequence, data[i][num_to_score]))
 
 
 def get_matches(data, args):
