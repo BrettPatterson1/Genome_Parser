@@ -4,6 +4,7 @@ import os
 import urllib.request
 import io
 import gzip
+import shutil
 
 Entrez.email = "brettsp2@illinois.edu"
 
@@ -25,6 +26,18 @@ def make_dir(path):
     else:
         print("Successfully created the directory %s " % path)
 
+def unpack_all():
+    files = [f for f in os.listdir('.') if os.path.isfile(f)]
+    for f in files:
+        new_name = f[:-3]
+        unpack_gz(f, new_name)
+        os.remove(f)
+
+def unpack_gz(gz_file, unpacked_file):
+    with gzip.open(gz_file, 'rb') as f_in:
+        with open(unpacked_file, 'wb') as f_out:
+            print(unpacked_file)
+            shutil.copyfileobj(f_in, f_out)
 
 def download_species(species):
     handle = Entrez.esearch(db="assembly", term=(species + "[ORGN] AND latest[SB]"))
@@ -46,6 +59,7 @@ def download_all_species(species):
         make_dir(path)
         os.chdir(path)
         get_assemblies(term=(name + "[ORGN] AND latest[SB]"), download=True)
+        unpack_all()
         os.chdir(saved_path)
 
 
@@ -78,7 +92,7 @@ def get_assemblies(term, download=True):
         download: whether to download the results
         path: folder to save to
     """
-    handle = Entrez.esearch(db="assembly", term=term)
+    handle = Entrez.esearch(db="assembly", term=term, retmax='200')
     record = Entrez.read(handle)
     ids = record['IdList']
     print (f'found {len(ids)} ids')
@@ -93,18 +107,22 @@ def get_assemblies(term, download=True):
         label = os.path.basename(url)
         #get the fasta link - change this to get other formats
         link = (url + "/" + label +'_genomic.fna.gz')
-        print(link)
+        #print(link)
         links.append(link)
         if download == True:
             #download link
             filename = f'{label}.fna.gz'
-            out_file_path = filename[:-3]
-            response = urllib.request.urlopen(link)
-            compressed_file = io.BytesIO(response.read())
-            decompressed_file = gzip.GzipFile(fileobj=compressed_file)
-
-            with open(out_file_path, "w") as outfile:
-                outfile.write(decompressed_file.read().decode('utf-8'))
+            urllib.request.urlretrieve(link, filename)
+            # out_file_path = filename[:-3]
+            # response = urllib.request.urlopen(link)
+            # try:
+            #     compressed_file = io.BytesIO(response.read())
+            #     decompressed_file = gzip.GzipFile(fileobj=compressed_file)
+            #
+            #     with open(out_file_path, "w") as outfile:
+            #         outfile.write(decompressed_file.read().decode('utf-8'))
+            # except EOFError as e:
+            #     print(e)
     return links
 
 
