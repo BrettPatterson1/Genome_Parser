@@ -1,6 +1,6 @@
 # Don't track these folders
 venv/
-
+.idea/
 # User-specific stuff
 .idea/**/workspace.xml
 .idea/**/tasks.xml
